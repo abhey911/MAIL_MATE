@@ -8,7 +8,7 @@ st.title("📧 MailMate – Think Less, Send Smart")
 email_text = st.text_area("Paste the email content you received:", height=300)
 recipient_email = st.text_input("Recipient Email Address")
 tone = st.selectbox("Select response tone", ["Professional", "Friendly", "Apologetic", "Persuasive"])
-model_choice = st.selectbox("Select model", ["gpt-3.5-turbo", "gpt-4"], index=0, help="gpt-3.5-turbo is the free ChatGPT model")
+model_choice = st.selectbox("Select model", ["gemini-pro"], index=0, help="Using Google's Gemini Pro model for generating responses")
 
 if st.button("Generate & Send Email"):
     if not recipient_email:

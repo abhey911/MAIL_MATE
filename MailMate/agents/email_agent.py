@@ -1,57 +1,63 @@
 import os
 import streamlit as st
-import openai
+import google.generativeai as genai
 
 
-def _get_openai_client():
-    """Return an OpenAI client using st.secrets or environment variable fallback.
+def _get_gemini_client():
+    """Configure and return Gemini API client using st.secrets or environment variable fallback.
     Returns None if no API key is configured.
     """
     api_key = None
     try:
-        api_key = st.secrets.get("OPENAI_API_KEY")
+        api_key = st.secrets.get("GOOGLE_API_KEY")
     except Exception:
         api_key = None
 
     if not api_key:
-        api_key = os.environ.get("OPENAI_API_KEY")
+        api_key = os.environ.get("GOOGLE_API_KEY")
 
     if not api_key:
         return None
-
-    return openai.OpenAI(api_key=api_key)
+    
+    # Configure the Gemini API
+    genai.configure(api_key=api_key)
+    return genai
 
 
 def generate_email_response(email_text, tone, model_name=None):
-    """Generate a reply using the OpenAI API.
+    """Generate a reply using the Google Gemini API.
 
     If the API key is not configured, returns a helpful error string instead of raising at import time.
     """
-    client = _get_openai_client()
+    client = _get_gemini_client()
     if client is None:
         return (
-            "Error: OpenAI API key not configured.\n"
-            "Set OPENAI_API_KEY in `.streamlit/secrets.toml` or set the OPENAI_API_KEY environment variable."
+            "Error: Google API key not configured.\n"
+            "Set GOOGLE_API_KEY in `.streamlit/secrets.toml` or set the GOOGLE_API_KEY environment variable."
         )
 
-    # Determine which model to use: preference order -> explicit arg, st.secrets, env var, default free model
-    if not model_name:
-        try:
-            model_name = st.secrets.get("OPENAI_MODEL")
-        except Exception:
-            model_name = None
+    # Gemini has a simpler model selection - we'll use gemini-pro by default
+    model = client.GenerativeModel('gemini-pro')
 
-    if not model_name:
-        model_name = os.environ.get("OPENAI_MODEL", "gpt-3.5-turbo")
+    prompt = f"""Write a reply to the following email using a {tone.lower()} tone. Make sure the response is professional and contextually appropriate.
 
-    prompt = f"""
-You are an AI assistant. Write a reply to the following email using a {tone.lower()} tone:
-
-Email:
+Email content to respond to:
 {email_text}
 
-Reply:
+Instructions:
+1. Use a {tone.lower()} tone throughout the response
+2. Ensure the response is clear and concise
+3. Address all points from the original email
+4. Include an appropriate greeting and closing
 """
+
+    try:
+        response = model.generate_content(prompt)
+        if response.text:
+            return response.text
+        return "Error: Unable to generate response. Please try again."
+    except Exception as e:
+        return f"Error generating response: {str(e)}"
     try:
         response = client.chat.completions.create(
             model=model_name,
