@@ -37,7 +37,7 @@ def generate_email_response(email_text, tone, model_name=None):
         )
 
     # Gemini has a simpler model selection - we'll use gemini-pro by default
-    model = client.GenerativeModel('gemini-pro')
+    model = client.GenerativeModel('gemini-2.5-flash')
 
     prompt = f"""Write a reply to the following email using a {tone.lower()} tone. Make sure the response is professional and contextually appropriate.
 
