@@ -23,3 +23,8 @@ if st.button("Generate & Send Email"):
                 st.success(f"Email sent successfully to {recipient_email}")
             else:
                 st.error("Failed to send the email.")
+
+
+from MailMate.utils.mailbuddy_triage import TriageTask
+task = TriageTask(known_contacts=['boss@example.com'])
+result = task.run({'subject': subject_text, 'body': body_text, 'sender': sender_text})
