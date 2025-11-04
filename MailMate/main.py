@@ -72,35 +72,50 @@ email_text = st.text_area("Paste the email content you received:", height=300)
 if st.session_state.folder_manager:
     with st.expander("📁 Folder View", expanded=True):
         folder_manager = st.session_state.folder_manager
-        if folder_manager.connect():
-            st.markdown("### 📁 Mail Folders")
-            
-            # Create tabs for different folder views
-            folder_tabs = st.tabs(["📥 Inbox", "⚡ Urgent", "🔔 Important", 
-                                 "📰 Newsletters", "🧾 Receipts", "🎯 Promotions"])
-            
-            with folder_tabs[0]:  # Inbox
-                emails = folder_manager.search_emails(folder="INBOX", limit=5)
-                if emails:
-                    st.write("Recent Inbox Emails:")
-                    for _, subject, sender in emails:
-                        st.markdown(f"- **{subject}** from {sender}")
-                else:
-                    st.info("No recent emails in Inbox")
-            
-            # Show contents of other folders
-            for i, folder in enumerate(folder_manager.DEFAULT_FOLDER_MAPPING.values(), 1):
-                if folder.upper() != "INBOX":
-                    with folder_tabs[i]:
-                        emails = folder_manager.search_emails(folder=folder, limit=5)
-                        if emails:
-                            st.write(f"Recent emails in {folder}:")
-                            for _, subject, sender in emails:
-                                st.markdown(f"- **{subject}** from {sender}")
-                        else:
-                            st.info(f"No emails in {folder}")
-            
-            folder_manager.disconnect()
+        try:
+            if folder_manager.connect():
+                st.markdown("### 📁 Mail Folders")
+                
+                # Get folder names from the mapping
+                folder_names = ["INBOX"] + [
+                    folder for folder in folder_manager.DEFAULT_FOLDER_MAPPING.values()
+                    if folder.upper() != "INBOX"
+                ]
+                
+                # Create folder labels with emojis
+                folder_labels = {
+                    "INBOX": "📥 Inbox",
+                    "Urgent": "⚡ Urgent",
+                    "Important": "🔔 Important",
+                    "Newsletters": "📰 Newsletters",
+                    "Receipts": "🧾 Receipts",
+                    "Promotions": "🎯 Promotions",
+                    "Archive": "📁 Archive"
+                }
+                
+                # Create tabs for available folders
+                tab_labels = [folder_labels.get(folder, f"📁 {folder}") for folder in folder_names]
+                folder_tabs = st.tabs(tab_labels)
+                
+                # Display contents of each folder
+                for tab, folder in zip(folder_tabs, folder_names):
+                    with tab:
+                        try:
+                            emails = folder_manager.search_emails(folder=folder, limit=5)
+                            if emails:
+                                st.write(f"Recent emails in {folder}:")
+                                for _, subject, sender in emails:
+                                    st.markdown(f"- **{subject}** from {sender}")
+                            else:
+                                st.info(f"No recent emails in {folder}")
+                        except Exception as e:
+                            st.error(f"Error accessing folder {folder}: {str(e)}")
+                
+                folder_manager.disconnect()
+        except Exception as e:
+            st.error(f"Error connecting to email server: {str(e)}")
+            if folder_manager:
+                folder_manager.disconnect()
 
 # Known contacts (comma-separated) used to mark important/urgent
 known_contacts_input = st.text_input("Known contacts (comma-separated)", value="boss@example.com",
