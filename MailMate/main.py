@@ -3,23 +3,108 @@ from agents.email_agent import generate_email_response
 from utils.email_sender import send_email
 
 try:
-    # TriageTask lives in utils/mailbuddy_triage.py
+    # Local imports
     from utils.mailbuddy_triage import TriageTask
+    from utils.email_folder_manager import EmailFolderManager
+    import email
+    from email.header import decode_header
 except Exception:
-    # Fallback to package-style import if running as module
+    # Package imports
     from MailMate.utils.mailbuddy_triage import TriageTask
+    from MailMate.utils.email_folder_manager import EmailFolderManager
+    import email
+    from email.header import decode_header
+
+# Initialize session state for IMAP settings
+if 'imap_configured' not in st.session_state:
+    st.session_state.imap_configured = False
+if 'folder_manager' not in st.session_state:
+    st.session_state.folder_manager = None
 
 
 st.set_page_config(page_title="Auto Email Responder", layout="wide")
 st.title("📧 MailMate – Think Less, Send Smart")
+
+# IMAP Settings Section
+with st.expander("📬 Email Server Settings"):
+    st.markdown("""
+    **Gmail Setup Instructions:**
+    1. Use your Gmail address
+    2. For password, use an [App Password](https://myaccount.google.com/apppasswords)
+    3. Server is pre-filled for Gmail
+    """)
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        email_address = st.text_input("Email Address", key="imap_email", placeholder="your.email@gmail.com")
+        imap_password = st.text_input("App Password", type="password", key="imap_password", 
+                                    help="Use App Password from Gmail security settings")
+    with col2:
+        imap_server = st.text_input("IMAP Server", value="imap.gmail.com", key="imap_server")
+        imap_port = st.number_input("IMAP Port", value=993, key="imap_port")
+    
+    if st.button("Configure Email Server"):
+        if not email_address or not imap_password:
+            st.warning("Please provide both email and password.")
+        else:
+            folder_manager = EmailFolderManager(
+                email_address=email_address,
+                password=imap_password,
+                imap_server=imap_server,
+                imap_port=imap_port
+            )
+            
+            # Test connection and create folders
+            if folder_manager.connect():
+                st.success("Successfully connected to email server!")
+                if folder_manager.ensure_folders_exist():
+                    st.success("Email folders configured successfully!")
+                    st.session_state.folder_manager = folder_manager
+                    st.session_state.imap_configured = True
+                folder_manager.disconnect()
 
 # Email metadata inputs
 subject_text = st.text_input("Email Subject")
 sender_text = st.text_input("Sender Email Address")
 email_text = st.text_area("Paste the email content you received:", height=300)
 
+# Add folder view if connected
+if st.session_state.folder_manager:
+    with st.expander("📁 Folder View", expanded=True):
+        folder_manager = st.session_state.folder_manager
+        if folder_manager.connect():
+            st.markdown("### 📁 Mail Folders")
+            
+            # Create tabs for different folder views
+            folder_tabs = st.tabs(["📥 Inbox", "⚡ Urgent", "🔔 Important", 
+                                 "📰 Newsletters", "🧾 Receipts", "🎯 Promotions"])
+            
+            with folder_tabs[0]:  # Inbox
+                emails = folder_manager.search_emails(folder="INBOX", limit=5)
+                if emails:
+                    st.write("Recent Inbox Emails:")
+                    for _, subject, sender in emails:
+                        st.markdown(f"- **{subject}** from {sender}")
+                else:
+                    st.info("No recent emails in Inbox")
+            
+            # Show contents of other folders
+            for i, folder in enumerate(folder_manager.DEFAULT_FOLDER_MAPPING.values(), 1):
+                if folder.upper() != "INBOX":
+                    with folder_tabs[i]:
+                        emails = folder_manager.search_emails(folder=folder, limit=5)
+                        if emails:
+                            st.write(f"Recent emails in {folder}:")
+                            for _, subject, sender in emails:
+                                st.markdown(f"- **{subject}** from {sender}")
+                        else:
+                            st.info(f"No emails in {folder}")
+            
+            folder_manager.disconnect()
+
 # Known contacts (comma-separated) used to mark important/urgent
-known_contacts_input = st.text_input("Known contacts (comma-separated)", value="boss@example.com")
+known_contacts_input = st.text_input("Known contacts (comma-separated)", value="boss@example.com",
+                                   help="Emails from these addresses may be marked as Urgent/Important")
 known_contacts = [c.strip() for c in known_contacts_input.split(",") if c.strip()]
 
 tone = st.selectbox("Select response tone", ["Professional", "Friendly", "Apologetic", "Persuasive"])
@@ -28,20 +113,60 @@ model_choice = st.selectbox("Select model", ["gemini-pro"], index=0, help="Using
 # Triage UI
 st.markdown("## 📋 Email Triage")
 triage_task = TriageTask(known_contacts=known_contacts)
-if st.button("Classify Email"):
-    if not subject_text and not email_text and not sender_text:
-        st.warning("Please provide at least the subject, sender, or body to classify the email.")
-    else:
-        with st.spinner("Classifying email..."):
-            triage_result = triage_task.run({
-                "subject": subject_text or "",
-                "body": email_text or "",
-                "sender": sender_text or "",
-            })
-        st.success("Classification complete")
-        st.write("**Category:**", triage_result.category)
-        st.write("**Action:**", triage_result.action)
-        st.write("**Justification:**", triage_result.justification)
+
+# Show recent emails if IMAP is configured
+if st.session_state.imap_configured and st.session_state.folder_manager:
+    with st.expander("📥 Recent Emails"):
+        folder_manager = st.session_state.folder_manager
+        if folder_manager.connect():
+            recent_emails = folder_manager.search_emails(folder="INBOX", limit=5)
+            if recent_emails:
+                selected_email = st.selectbox(
+                    "Select an email to triage:",
+                    options=recent_emails,
+                    format_func=lambda x: f"{x[1]} - From: {x[2]}"
+                )
+                if selected_email:
+                    subject_text = selected_email[1]
+                    sender_text = selected_email[2]
+            folder_manager.disconnect()
+
+col1, col2 = st.columns([2, 1])
+with col1:
+    if st.button("Classify Email"):
+        if not subject_text and not email_text and not sender_text:
+            st.warning("Please provide at least the subject, sender, or body to classify the email.")
+        else:
+            with st.spinner("Classifying email..."):
+                triage_result = triage_task.run({
+                    "subject": subject_text or "",
+                    "body": email_text or "",
+                    "sender": sender_text or "",
+                })
+            st.success("Classification complete")
+            st.write("**Category:**", triage_result.category)
+            st.write("**Action:**", triage_result.action)
+            st.write("**Justification:**", triage_result.justification)
+            
+            # Show move action if IMAP configured
+            if st.session_state.imap_configured:
+                target_folder = st.session_state.folder_manager.get_folder_for_category(triage_result.category)
+                if st.button(f"📁 Move to {target_folder}"):
+                    folder_manager = st.session_state.folder_manager
+                    if folder_manager.connect():
+                        if hasattr(st.session_state, 'selected_email') and st.session_state.selected_email:
+                            msg_id = st.session_state.selected_email[0]
+                            if folder_manager.move_email(msg_id, "INBOX", target_folder):
+                                st.success(f"Moved email to {target_folder}")
+                            folder_manager.disconnect()
+
+with col2:
+    if st.session_state.imap_configured:
+        st.markdown("### 📁 Folders")
+        folder_manager = st.session_state.folder_manager
+        if folder_manager:
+            for category, folder in folder_manager.DEFAULT_FOLDER_MAPPING.items():
+                st.write(f"**{category}:** {folder}")
 
 # Generate & Send flow
 st.markdown("---")

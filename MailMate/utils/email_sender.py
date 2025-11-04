@@ -7,7 +7,7 @@ from email.mime.multipart import MIMEMultipart
 
 def send_email(recipient, body):
     try:
-        # Prefer st.secrets when available, fall back to environment variables for dev
+        
         sender_email = None
         sender_password = None
         try:

@@ -19,7 +19,7 @@ def _get_gemini_client():
     if not api_key:
         return None
     
-    # Configure the Gemini API
+   
     genai.configure(api_key=api_key)
     return genai
 
@@ -36,7 +36,7 @@ def generate_email_response(email_text, tone, model_name=None):
             "Set GOOGLE_API_KEY in `.streamlit/secrets.toml` or set the GOOGLE_API_KEY environment variable."
         )
 
-    # Gemini has a simpler model selection - we'll use gemini-pro by default
+    
     model = client.GenerativeModel('gemini-2.5-flash')
 
     prompt = f"""Write a reply to the following email using a {tone.lower()} tone. Make sure the response is professional and contextually appropriate.
