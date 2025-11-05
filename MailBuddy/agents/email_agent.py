@@ -47,37 +47,9 @@ def _get_gemini_client():
     return genai
 
 
-def classify_email(email_text):
-    """Classify the email to determine its type and suggested response tone."""
-    if not email_text.strip():
-        return None, None
-
-    client = _get_gemini_client()
-    if client is None:
-        return None, None
-
-    try:
-        model = client.GenerativeModel('gemini-2.5-flash')
-        prompt = f"""Analyze this email and provide two pieces of information:
-1. Email Type (choose one): Urgent, Important, Newsletter, Receipt, Promotion, General
-2. Best Tone (choose one): Professional, Friendly, Casual, Formal
-
-Email content:
-{email_text}
-
-Return ONLY these two words separated by a comma, like: "Type,Tone"
-"""
-        response = model.generate_content(prompt)
-        if response.text and response.text.strip():
-            email_type, tone = response.text.strip().split(',')
-            return email_type.strip(), tone.strip()
-        return None, None
-    except Exception:
-        return None, None
-
-def generate_email_response(email_text, tone, important_info: str | None = None):
+def generate_email_response(email_text, tone, important_info: str | None = None, model_name=None):
     """Generate a reply using the Google Gemini API.
-    
+
     If the API key is not configured, returns a helpful error string instead of raising at import time.
     """
     if not email_text.strip():
@@ -119,3 +91,12 @@ Instructions:
     except Exception as e:
         st.error(f"Error during response generation: {str(e)}")
         return _generate_fallback_response(email_text, tone, important_info)
+    try:
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        # Guard against unexpected response shapes
+        return getattr(response.choices[0].message, "content", "").strip()
+    except Exception as e:
+        return f"Error generating response: {e}"
