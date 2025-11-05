@@ -4,14 +4,14 @@ from email.header import decode_header
 
 # Prefer package imports (works on deployed/packaged runs). Fall back to local imports
 try:
-    from MailBuddy.agents.email_agent import generate_email_response
+    from MailBuddy.agents.email_agent import generate_email_response, classify_email
     from MailBuddy.utils.email_sender import send_email
     from MailBuddy.utils.mailbuddy_triage import TriageTask
     from MailBuddy.utils.email_folder_manager import EmailFolderManager
     from MailBuddy.utils.contacts import load_contacts, save_contacts
 except Exception:
     # Local/dev imports (when running from the project root)
-    from agents.email_agent import generate_email_response
+    from agents.email_agent import generate_email_response, classify_email
     from utils.email_sender import send_email
     from utils.mailbuddy_triage import TriageTask
     from utils.email_folder_manager import EmailFolderManager
@@ -86,7 +86,13 @@ if 'editing_response' not in st.session_state:
 sender_text = st.text_input("Sender Email Address", key="sender_email")
 email_text = st.text_area("Paste the email content you received:", height=200, key="email_content")
 
-# Create two columns for the compose section
+# Initialize classification state
+if 'email_type' not in st.session_state:
+    st.session_state.email_type = None
+if 'suggested_tone' not in st.session_state:
+    st.session_state.suggested_tone = None
+
+# Create columns for compose section
 col1, col2 = st.columns([2, 1])
 
 with col1:
@@ -96,8 +102,31 @@ with col1:
                                  height=80,
                                  key="important_info")
 with col2:
+    # Classify email when content changes
+    if email_text.strip() and (not st.session_state.email_type or not st.session_state.suggested_tone):
+        email_type, suggested_tone = classify_email(email_text)
+        if email_type and suggested_tone:
+            st.session_state.email_type = email_type
+            st.session_state.suggested_tone = suggested_tone
+    
+    # Show classification results
+    if st.session_state.email_type:
+        st.info(f"📝 Email Type: {st.session_state.email_type}")
+    
+    # Tone selection with suggestion
     tone_options = ["Professional", "Friendly", "Casual", "Formal"]
-    selected_tone = st.selectbox("Response Tone", tone_options, index=0, key="tone")
+    default_index = (
+        tone_options.index(st.session_state.suggested_tone)
+        if st.session_state.suggested_tone in tone_options
+        else 0
+    )
+    selected_tone = st.selectbox(
+        "Response Tone",
+        tone_options,
+        index=default_index,
+        help="AI suggested tone based on email content",
+        key="tone"
+    )
 
 # Response Generation and Editing Section
 if st.button("Generate Response", type="primary"):
