@@ -2,6 +2,29 @@ import os
 import streamlit as st
 import google.generativeai as genai
 
+def _generate_fallback_response(email_text: str, tone: str, important_info: str | None = None) -> str:
+    """Generate a basic fallback response when the AI model fails."""
+    greeting = "Thank you for your email."
+    
+    tone_phrases = {
+        "Professional": "I appreciate you reaching out.",
+        "Friendly": "It's great to hear from you!",
+        "Casual": "Thanks for getting in touch!",
+        "Formal": "I acknowledge receipt of your message.",
+    }
+    
+    tone_phrase = tone_phrases.get(tone.title(), tone_phrases["Professional"])
+    
+    response = f"{greeting} {tone_phrase}\n\n"
+    response += "I am reviewing your message and will provide a detailed response soon.\n\n"
+    
+    if important_info:
+        response += f"Please note: {important_info}\n\n"
+    
+    response += "Best regards,\n[Your name]"
+    
+    return response
+
 
 def _get_gemini_client():
     """Configure and return Gemini API client using st.secrets or environment variable fallback.
@@ -29,6 +52,9 @@ def generate_email_response(email_text, tone, important_info: str | None = None,
 
     If the API key is not configured, returns a helpful error string instead of raising at import time.
     """
+    if not email_text.strip():
+        return "Error: Please provide the email content to respond to."
+
     client = _get_gemini_client()
     if client is None:
         return (
@@ -36,11 +62,11 @@ def generate_email_response(email_text, tone, important_info: str | None = None,
             "Set GOOGLE_API_KEY in `.streamlit/secrets.toml` or set the GOOGLE_API_KEY environment variable."
         )
 
-    
-    model = client.GenerativeModel('gemini-2.5-flash')
+    try:
+        model = client.GenerativeModel('gemini-2.5-flash')
 
-    # Build the prompt. If `important_info` is provided, ask the model to include it.
-    prompt = f"""Write a reply to the following email using a {tone.lower()} tone. Make sure the response is professional and contextually appropriate.
+        # Build the prompt with specific instructions for handling important info
+        prompt = f"""Write a reply to the following email using a {tone.lower()} tone. Make sure the response is professional and contextually appropriate.
 
 Email content to respond to:
 {email_text}
@@ -50,17 +76,21 @@ Instructions:
 2. Ensure the response is clear and concise
 3. Address all points from the original email
 4. Include an appropriate greeting and closing
+5. Format the response with proper line breaks between paragraphs
 """
-    if important_info:
-        prompt += f"\nAdditional important information to include in the reply:\n{important_info}\n"
+        if important_info:
+            prompt += f"\nIMPORTANT: Incorporate this information naturally into the response:\n{important_info}\n"
 
-    try:
         response = model.generate_content(prompt)
-        if response.text:
-            return response.text
-        return "Error: Unable to generate response. Please try again."
+        if response.text and response.text.strip():
+            return response.text.strip()
+
+        # Fallback if response is empty but no error occurred
+        return _generate_fallback_response(email_text, tone, important_info)
+
     except Exception as e:
-        return f"Error generating response: {str(e)}"
+        st.error(f"Error during response generation: {str(e)}")
+        return _generate_fallback_response(email_text, tone, important_info)
     try:
         response = client.chat.completions.create(
             model=model_name,

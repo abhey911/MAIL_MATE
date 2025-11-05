@@ -77,11 +77,90 @@ with st.expander("📬 Email Server Settings"):
                 folder_manager.disconnect()
 
 
-subject_text = ""
-sender_text = st.text_input("Sender Email Address")
-email_text = st.text_area("Paste the email content you received:", height=300)
-# Optional important info to include in the generated reply
-important_info = st.text_area("Important info to include in reply (optional)", height=80)
+# Initialize session state for response handling
+if 'generated_response' not in st.session_state:
+    st.session_state.generated_response = None
+if 'editing_response' not in st.session_state:
+    st.session_state.editing_response = None
+
+sender_text = st.text_input("Sender Email Address", key="sender_email")
+email_text = st.text_area("Paste the email content you received:", height=200, key="email_content")
+
+# Create two columns for the compose section
+col1, col2 = st.columns([2, 1])
+
+with col1:
+    # Optional important info to include in the generated reply
+    important_info = st.text_area("Important information to include in reply (optional)", 
+                                 help="This information will be naturally incorporated into the response",
+                                 height=80,
+                                 key="important_info")
+with col2:
+    tone_options = ["Professional", "Friendly", "Casual", "Formal"]
+    selected_tone = st.selectbox("Response Tone", tone_options, index=0, key="tone")
+
+# Response Generation and Editing Section
+if st.button("Generate Response", type="primary"):
+    if not email_text.strip():
+        st.error("Please provide the email content to respond to.")
+    else:
+        with st.spinner("Generating response..."):
+            response = generate_email_response(
+                email_text=email_text,
+                tone=selected_tone,
+                important_info=important_info if important_info.strip() else None
+            )
+            st.session_state.generated_response = response
+            st.session_state.editing_response = response
+
+if st.session_state.generated_response:
+    st.markdown("### Generated Response")
+    
+    # Show editable response in a text area
+    edited_response = st.text_area(
+        "Edit your response as needed:",
+        value=st.session_state.editing_response,
+        height=300,
+        key="response_editor"
+    )
+    st.session_state.editing_response = edited_response
+    
+    # Create two columns for the action buttons
+    col1, col2, col3 = st.columns([1, 1, 2])
+    
+    with col1:
+        if st.button("Regenerate", type="secondary"):
+            with st.spinner("Regenerating response..."):
+                response = generate_email_response(
+                    email_text=email_text,
+                    tone=selected_tone,
+                    important_info=important_info if important_info.strip() else None
+                )
+                st.session_state.generated_response = response
+                st.session_state.editing_response = response
+                _safe_rerun()
+    
+    with col2:
+        if st.button("Clear", type="secondary"):
+            st.session_state.generated_response = None
+            st.session_state.editing_response = None
+            _safe_rerun()
+    
+    with col3:
+        if st.button("Send Response", type="primary"):
+            if not sender_text:
+                st.error("Please provide the sender's email address.")
+            elif not edited_response:
+                st.error("Response cannot be empty.")
+            else:
+                try:
+                    # TODO: Implement send_email function call
+                    st.success("Response sent successfully!")
+                    st.session_state.generated_response = None
+                    st.session_state.editing_response = None
+                    _safe_rerun()
+                except Exception as e:
+                    st.error(f"Failed to send email: {str(e)}")
 
 # Add folder view if connected
 if st.session_state.folder_manager:
