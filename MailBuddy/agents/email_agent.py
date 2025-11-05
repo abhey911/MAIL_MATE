@@ -24,7 +24,7 @@ def _get_gemini_client():
     return genai
 
 
-def generate_email_response(email_text, tone, model_name=None):
+def generate_email_response(email_text, tone, important_info: str | None = None, model_name=None):
     """Generate a reply using the Google Gemini API.
 
     If the API key is not configured, returns a helpful error string instead of raising at import time.
@@ -39,6 +39,7 @@ def generate_email_response(email_text, tone, model_name=None):
     
     model = client.GenerativeModel('gemini-2.5-flash')
 
+    # Build the prompt. If `important_info` is provided, ask the model to include it.
     prompt = f"""Write a reply to the following email using a {tone.lower()} tone. Make sure the response is professional and contextually appropriate.
 
 Email content to respond to:
@@ -50,6 +51,8 @@ Instructions:
 3. Address all points from the original email
 4. Include an appropriate greeting and closing
 """
+    if important_info:
+        prompt += f"\nAdditional important information to include in the reply:\n{important_info}\n"
 
     try:
         response = model.generate_content(prompt)

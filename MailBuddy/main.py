@@ -80,6 +80,8 @@ with st.expander("📬 Email Server Settings"):
 subject_text = ""
 sender_text = st.text_input("Sender Email Address")
 email_text = st.text_area("Paste the email content you received:", height=300)
+# Optional important info to include in the generated reply
+important_info = st.text_area("Important info to include in reply (optional)", height=80)
 
 # Add folder view if connected
 if st.session_state.folder_manager:
@@ -223,20 +225,28 @@ with col2:
             for category, folder in folder_manager.DEFAULT_FOLDER_MAPPING.items():
                 st.write(f"**{category}:** {folder}")
 
-# Generate & Send flow
+## Generate & Edit Reply
 st.markdown("---")
-if st.button("Generate & Send Email"):
+if st.button("Generate Reply"):
     if not sender_text:
         st.warning("Please enter the sender's email address (used as recipient for the reply).")
     else:
-        with st.spinner("Generating and sending email..."):
-            # Generate the response using the configured agent
-            # model selection removed from UI; use default behavior in agent
-            response = generate_email_response(email_text, tone)
-            send_status = send_email(sender_text, response)
-            st.subheader("✉️ Response")
-            st.markdown(response, unsafe_allow_html=True)
+        with st.spinner("Generating reply..."):
+            # Pass important_info into the generator so it can be included
+            generated = generate_email_response(email_text, tone, important_info=important_info)
+            # Store in session state for editing/sending
+            st.session_state['generated_reply'] = generated
+
+# If we have a generated reply, show an editable field and a Send button
+if st.session_state.get('generated_reply'):
+    st.subheader("✉️ Generated Reply (editable)")
+    edited_reply = st.text_area("Edit the reply before sending:", value=st.session_state.get('generated_reply',''), height=200)
+    if st.button("Send Reply"):
+        with st.spinner("Sending email..."):
+            send_status = send_email(sender_text, edited_reply)
             if send_status:
                 st.success(f"Email sent successfully to {sender_text}")
+                # Clear generated reply after send
+                st.session_state.pop('generated_reply', None)
             else:
                 st.error("Failed to send the email.")
