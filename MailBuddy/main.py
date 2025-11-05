@@ -1,19 +1,19 @@
 import streamlit as st
-from agents.email_agent import generate_email_response
-from utils.email_sender import send_email
+import email
+from email.header import decode_header
 
+# Prefer package imports (works on deployed/packaged runs). Fall back to local imports
 try:
-    # Local imports
-    from utils.mailbuddy_triage import TriageTask
-    from utils.email_folder_manager import EmailFolderManager
-    import email
-    from email.header import decode_header
-except Exception:
-    # Package imports
+    from MailBuddy.agents.email_agent import generate_email_response
+    from MailBuddy.utils.email_sender import send_email
     from MailBuddy.utils.mailbuddy_triage import TriageTask
     from MailBuddy.utils.email_folder_manager import EmailFolderManager
-    import email
-    from email.header import decode_header
+except Exception:
+    # Local/dev imports (when running from the project root)
+    from agents.email_agent import generate_email_response
+    from utils.email_sender import send_email
+    from utils.mailbuddy_triage import TriageTask
+    from utils.email_folder_manager import EmailFolderManager
 
 # Initialize session state for IMAP settings
 if 'imap_configured' not in st.session_state:
@@ -63,8 +63,8 @@ with st.expander("📬 Email Server Settings"):
                     st.session_state.imap_configured = True
                 folder_manager.disconnect()
 
-# Email metadata inputs
-subject_text = st.text_input("Email Subject")
+
+subject_text = ""
 sender_text = st.text_input("Sender Email Address")
 email_text = st.text_area("Paste the email content you received:", height=300)
 
