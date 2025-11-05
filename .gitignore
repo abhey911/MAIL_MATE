@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtualenv
+.venv/
+
+# Local settings
+.vscode/
+
+# Ignore stored known contacts (user data)
+MailBuddy/data/known_contacts.json

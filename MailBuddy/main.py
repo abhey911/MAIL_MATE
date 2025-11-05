@@ -8,12 +8,14 @@ try:
     from MailBuddy.utils.email_sender import send_email
     from MailBuddy.utils.mailbuddy_triage import TriageTask
     from MailBuddy.utils.email_folder_manager import EmailFolderManager
+    from MailBuddy.utils.contacts import load_contacts, save_contacts
 except Exception:
     # Local/dev imports (when running from the project root)
     from agents.email_agent import generate_email_response
     from utils.email_sender import send_email
     from utils.mailbuddy_triage import TriageTask
     from utils.email_folder_manager import EmailFolderManager
+    from utils.contacts import load_contacts, save_contacts
 
 # Initialize session state for IMAP settings
 if 'imap_configured' not in st.session_state:
@@ -117,13 +119,40 @@ if st.session_state.folder_manager:
             if folder_manager:
                 folder_manager.disconnect()
 
-# Known contacts (comma-separated) used to mark important/urgent
-known_contacts_input = st.text_input("Known contacts (comma-separated)", value="boss@example.com",
-                                   help="Emails from these addresses may be marked as Urgent/Important")
-known_contacts = [c.strip() for c in known_contacts_input.split(",") if c.strip()]
+# Known contacts removed from UI (managed in code or config). Use empty list by default.
+# Load known contacts from local storage (user-managed). Falls back to empty list.
+known_contacts = load_contacts()
 
+# Manage known contacts in UI
+with st.expander("👥 Manage Known Contacts", expanded=False):
+    col_a, col_b = st.columns([3, 1])
+    with col_a:
+        new_contact = st.text_input("Add contact email", key="new_contact_input")
+    with col_b:
+        if st.button("Add", key="add_contact_btn"):
+            if new_contact:
+                contact = new_contact.strip().lower()
+                if contact and contact not in known_contacts:
+                    known_contacts.append(contact)
+                    save_contacts(known_contacts)
+                    st.success(f"Added {contact}")
+                    st.experimental_rerun()
+                else:
+                    st.info("Contact already present or empty")
+
+    # Show existing contacts with remove buttons
+    if known_contacts:
+        for i, c in enumerate(list(known_contacts)):
+            ccol1, ccol2 = st.columns([8,1])
+            ccol1.write(c)
+            if ccol2.button("Remove", key=f"rm_{i}"):
+                known_contacts.pop(i)
+                save_contacts(known_contacts)
+                st.success(f"Removed {c}")
+                st.experimental_rerun()
+
+# Tone selector remains for response style
 tone = st.selectbox("Select response tone", ["Professional", "Friendly", "Apologetic", "Persuasive"])
-model_choice = st.selectbox("Select model", ["gemini-pro"], index=0, help="Using Google's Gemini Pro model for generating responses")
 
 # Triage UI
 st.markdown("## 📋 Email Triage")
@@ -191,7 +220,8 @@ if st.button("Generate & Send Email"):
     else:
         with st.spinner("Generating and sending email..."):
             # Generate the response using the configured agent
-            response = generate_email_response(email_text, tone, model_name=model_choice)
+            # model selection removed from UI; use default behavior in agent
+            response = generate_email_response(email_text, tone)
             send_status = send_email(sender_text, response)
             st.subheader("✉️ Response")
             st.markdown(response, unsafe_allow_html=True)
