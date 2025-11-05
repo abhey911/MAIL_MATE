@@ -1,36 +1,40 @@
-# MailBuddy
+# Mail Mate — Streamlit UI update (Add info + Classifier)
 
-Small Streamlit app that generates email replies using OpenAI and can send them via SMTP.
+This adds a streamlined Streamlit app (streamlit_app.py) and a small classifier helper (mailmate/classifier.py).
 
-Quick start (local)
-1. Create a Python 3.11+ virtual environment and activate it.
-2. Install dependencies:
+How to run locally
+1. Create virtualenv and install dependencies:
+   python -m venv .venv
+   source .venv/bin/activate   # (Linux / macOS)
+   .venv\Scripts\activate      # (Windows)
+   pip install -r requirements.txt
 
-```powershell
-python -m pip install -r requirements.txt
+2. Start the app:
+   streamlit run streamlit_app.py
+
+What the UI does
+- "Add info" section (contains the single Generate response button you wanted kept in that place).
+- "Classify email" section (no Generate response button). You can point to a model path or upload a model file.
+- Debug checkbox to show additional model info and traces.
+
+Model format
+- The app expects a pickled scikit-learn pipeline (pickle or joblib). The simplest compatible object is a Pipeline containing a vectorizer (TfidfVectorizer) and a classifier (e.g., LogisticRegression, RandomForestClassifier).
+- Example saving code (in Python):
+```python
+from sklearn.pipeline import Pipeline
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+import joblib
+
+pipe = Pipeline([
+    ("tfidf", TfidfVectorizer()),
+    ("clf", LogisticRegression(max_iter=1000))
+])
+# after training:
+joblib.dump(pipe, "models/email_classifier.pkl")
 ```
 
-3. Add secrets for local development:
-
-- Copy `.streamlit/secrets.toml.example` to `.streamlit/secrets.toml` and fill in the values.
-- Alternatively set environment variables `OPENAI_API_KEY`, `SENDER_EMAIL`, `EMAIL_PASSWORD`, and optionally `SMTP_SERVER`/`SMTP_PORT`.
-
-4. Run the app:
-
-```powershell
-streamlit run main.py
-```
-
-Deployment to Streamlit Cloud
-- Push this repo to GitHub. Create a Streamlit Community app and point it at the repository.
-- In the Streamlit Cloud app settings, add the secrets (OPENAI_API_KEY, SENDER_EMAIL, EMAIL_PASSWORD, etc.) under "Secrets" — do not commit secrets to the repo.
-
-Notes & suggestions
-- The app uses the OpenAI SDK via `agents/email_agent.py`. The code provides environment-variable fallbacks.
-- The app currently uses model `gpt-4`. If you don't have access to `gpt-4` on the platform you may need to switch to another available model (e.g., `gpt-4o-mini` or a GPT-3.5 alternative).
-- Sending real email requires valid SMTP credentials. For testing, use a throwaway account or a local SMTP testing service.
-
-Security
-- Never commit `.streamlit/secrets.toml` to source control. Use the provided `.streamlit/secrets.toml.example` as a template.
-
-If you want, I can also add a simple unit test and a GitHub Actions workflow for CI.
+Troubleshooting classifier fails
+- Confirm the model file exists at the path given to the UI (models/email_classifier.pkl by default).
+- If using an uploaded file, make sure it's a pickled/sklearn-compatible object.
+- If classification raises an exception, check the terminal where streamlit was started — errors and stack traces will appear there; enable the "Show debug info/tracebacks" checkbox in the UI for more info displayed in the app.
