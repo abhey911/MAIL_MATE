@@ -2,20 +2,31 @@ import streamlit as st
 import email
 from email.header import decode_header
 
-# Prefer package imports (works on deployed/packaged runs). Fall back to local imports
+# Handle imports for both package and local development
+import os
+import sys
+
+# Add the parent directory to Python path for local development
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
+
+# Now try imports
 try:
-    from MailBuddy.agents.email_agent import generate_email_response, classify_email
-    from MailBuddy.utils.email_sender import send_email
-    from MailBuddy.utils.mailbuddy_triage import TriageTask
-    from MailBuddy.utils.email_folder_manager import EmailFolderManager
-    from MailBuddy.utils.contacts import load_contacts, save_contacts
-except Exception:
-    # Local/dev imports (when running from the project root)
+    # Try local imports first
     from agents.email_agent import generate_email_response, classify_email
     from utils.email_sender import send_email
     from utils.mailbuddy_triage import TriageTask
     from utils.email_folder_manager import EmailFolderManager
     from utils.contacts import load_contacts, save_contacts
+except ImportError:
+    # Fall back to package imports
+    from MailBuddy.agents.email_agent import generate_email_response, classify_email
+    from MailBuddy.utils.email_sender import send_email
+    from MailBuddy.utils.mailbuddy_triage import TriageTask
+    from MailBuddy.utils.email_folder_manager import EmailFolderManager
+    from MailBuddy.utils.contacts import load_contacts, save_contacts
 
 # Initialize session state for IMAP settings
 if 'imap_configured' not in st.session_state:
