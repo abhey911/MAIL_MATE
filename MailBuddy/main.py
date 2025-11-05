@@ -27,6 +27,17 @@ if 'folder_manager' not in st.session_state:
 st.set_page_config(page_title="Auto Email Responder", layout="wide")
 st.title("📧 MailBuddy – Think Less, Send Smart")
 
+# Helper: safe rerun (some Streamlit builds may not expose experimental_rerun)
+def _safe_rerun():
+    try:
+        st.experimental_rerun()
+    except Exception:
+        # Fall back to setting a flag and asking the user to refresh
+        st.session_state["_needs_refresh"] = True
+
+if st.session_state.get("_needs_refresh"):
+    st.info("Changes saved. Please refresh the page to see updates.")
+
 # IMAP Settings Section
 with st.expander("📬 Email Server Settings"):
     st.markdown("""
@@ -136,7 +147,7 @@ with st.expander("👥 Manage Known Contacts", expanded=False):
                     known_contacts.append(contact)
                     save_contacts(known_contacts)
                     st.success(f"Added {contact}")
-                    st.experimental_rerun()
+                    _safe_rerun()
                 else:
                     st.info("Contact already present or empty")
 
@@ -149,7 +160,7 @@ with st.expander("👥 Manage Known Contacts", expanded=False):
                 known_contacts.pop(i)
                 save_contacts(known_contacts)
                 st.success(f"Removed {c}")
-                st.experimental_rerun()
+                _safe_rerun()
 
 # Tone selector remains for response style
 tone = st.selectbox("Select response tone", ["Professional", "Friendly", "Apologetic", "Persuasive"])
