@@ -100,6 +100,14 @@ important_info = st.text_area(
     key="important_info",
 )
 
+# Tone selector for response style (placed before Generate Response)
+st.session_state.tone = st.selectbox(
+    "Select response tone",
+    ["Professional", "Friendly", "Apologetic", "Persuasive"],
+    index=["Professional", "Friendly", "Apologetic", "Persuasive"].index(st.session_state.tone)
+    if st.session_state.tone in ["Professional", "Friendly", "Apologetic", "Persuasive"] else 0
+)
+
 # Response Generation and Editing Section
 if st.button("Generate Response", type="primary"):
     if not email_text.strip():
@@ -131,21 +139,24 @@ if st.session_state.generated_response:
     
     with col1:
         if st.button("Regenerate", type="secondary"):
-            with st.spinner("Regenerating response..."):
-                response = generate_email_response(
-                    email_text=email_text,
-                    tone=st.session_state.tone,
-                    important_info=important_info if important_info.strip() else None
-                )
-                st.session_state.generated_response = response
-                st.session_state.editing_response = response
-                _safe_rerun()
+            if not email_text.strip():
+                st.warning("Please provide email content to regenerate a response.")
+            else:
+                with st.spinner("Regenerating response..."):
+                    response = generate_email_response(
+                        email_text=email_text,
+                        tone=st.session_state.tone,
+                        important_info=important_info if important_info.strip() else None
+                    )
+                    st.session_state.generated_response = response
+                    st.session_state.editing_response = response
+                st.info("Response regenerated. You can edit it below.")
     
     with col2:
         if st.button("Clear", type="secondary"):
             st.session_state.generated_response = None
             st.session_state.editing_response = None
-            _safe_rerun()
+            st.toast("Cleared generated response.")
 
 # Add folder view if connected
 if st.session_state.folder_manager:
@@ -228,13 +239,7 @@ with st.expander("👥 Manage Known Contacts", expanded=False):
                 st.success(f"Removed {c}")
                 _safe_rerun()
 
-# Tone selector remains for response style (updates session state)
-st.session_state.tone = st.selectbox(
-    "Select response tone",
-    ["Professional", "Friendly", "Apologetic", "Persuasive"],
-    index=["Professional", "Friendly", "Apologetic", "Persuasive"].index(st.session_state.tone)
-    if st.session_state.tone in ["Professional", "Friendly", "Apologetic", "Persuasive"] else 0
-)
+##
 
 # Triage UI
 st.markdown("## 📋 Email Triage")
