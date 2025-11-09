@@ -83,21 +83,22 @@ if 'generated_response' not in st.session_state:
 if 'editing_response' not in st.session_state:
     st.session_state.editing_response = None
 
+# Initialize tone in session state (default Professional)
+if 'tone' not in st.session_state:
+    st.session_state.tone = 'Professional'
+
 sender_text = st.text_input("Sender Email Address", key="sender_email")
 email_text = st.text_area("Paste the email content you received:", height=200, key="email_content")
+# Initialize subject_text to avoid NameError when not selecting from IMAP list
+subject_text = ""
 
-# Create two columns for the compose section
-col1, col2 = st.columns([2, 1])
-
-with col1:
-    # Optional important info to include in the generated reply
-    important_info = st.text_area("Important information to include in reply (optional)", 
-                                 help="This information will be naturally incorporated into the response",
-                                 height=80,
-                                 key="important_info")
-with col2:
-    tone_options = ["Professional", "Friendly", "Casual", "Formal"]
-    selected_tone = st.selectbox("Response Tone", tone_options, index=0, key="tone")
+# Important info to include in the generated reply (full width)
+important_info = st.text_area(
+    "Important information to include in reply (optional)",
+    help="This information will be naturally incorporated into the response",
+    height=80,
+    key="important_info",
+)
 
 # Response Generation and Editing Section
 if st.button("Generate Response", type="primary"):
@@ -107,7 +108,7 @@ if st.button("Generate Response", type="primary"):
         with st.spinner("Generating response..."):
             response = generate_email_response(
                 email_text=email_text,
-                tone=selected_tone,
+                tone=st.session_state.tone,
                 important_info=important_info if important_info.strip() else None
             )
             st.session_state.generated_response = response
@@ -125,15 +126,15 @@ if st.session_state.generated_response:
     )
     st.session_state.editing_response = edited_response
     
-    # Create two columns for the action buttons
-    col1, col2, col3 = st.columns([1, 1, 2])
+    # Create two columns for the action buttons (Send removed)
+    col1, col2 = st.columns([1, 1])
     
     with col1:
         if st.button("Regenerate", type="secondary"):
             with st.spinner("Regenerating response..."):
                 response = generate_email_response(
                     email_text=email_text,
-                    tone=selected_tone,
+                    tone=st.session_state.tone,
                     important_info=important_info if important_info.strip() else None
                 )
                 st.session_state.generated_response = response
@@ -145,22 +146,6 @@ if st.session_state.generated_response:
             st.session_state.generated_response = None
             st.session_state.editing_response = None
             _safe_rerun()
-    
-    with col3:
-        if st.button("Send Response", type="primary"):
-            if not sender_text:
-                st.error("Please provide the sender's email address.")
-            elif not edited_response:
-                st.error("Response cannot be empty.")
-            else:
-                try:
-                    # TODO: Implement send_email function call
-                    st.success("Response sent successfully!")
-                    st.session_state.generated_response = None
-                    st.session_state.editing_response = None
-                    _safe_rerun()
-                except Exception as e:
-                    st.error(f"Failed to send email: {str(e)}")
 
 # Add folder view if connected
 if st.session_state.folder_manager:
@@ -243,8 +228,13 @@ with st.expander("👥 Manage Known Contacts", expanded=False):
                 st.success(f"Removed {c}")
                 _safe_rerun()
 
-# Tone selector remains for response style
-tone = st.selectbox("Select response tone", ["Professional", "Friendly", "Apologetic", "Persuasive"])
+# Tone selector remains for response style (updates session state)
+st.session_state.tone = st.selectbox(
+    "Select response tone",
+    ["Professional", "Friendly", "Apologetic", "Persuasive"],
+    index=["Professional", "Friendly", "Apologetic", "Persuasive"].index(st.session_state.tone)
+    if st.session_state.tone in ["Professional", "Friendly", "Apologetic", "Persuasive"] else 0
+)
 
 # Triage UI
 st.markdown("## 📋 Email Triage")
@@ -304,28 +294,23 @@ with col2:
             for category, folder in folder_manager.DEFAULT_FOLDER_MAPPING.items():
                 st.write(f"**{category}:** {folder}")
 
-## Generate & Edit Reply
+## Send Reply
 st.markdown("---")
-if st.button("Generate Reply"):
+if st.button("Send Reply"):
+    # Use the response generated in the top section
+    edited = st.session_state.get('editing_response') or st.session_state.get('generated_response')
     if not sender_text:
         st.warning("Please enter the sender's email address (used as recipient for the reply).")
+    elif not edited or not edited.strip():
+        st.warning("Please generate a response above before sending.")
     else:
-        with st.spinner("Generating reply..."):
-            # Pass important_info into the generator so it can be included
-            generated = generate_email_response(email_text, tone, important_info=important_info)
-            # Store in session state for editing/sending
-            st.session_state['generated_reply'] = generated
-
-# If we have a generated reply, show an editable field and a Send button
-if st.session_state.get('generated_reply'):
-    st.subheader("✉️ Generated Reply (editable)")
-    edited_reply = st.text_area("Edit the reply before sending:", value=st.session_state.get('generated_reply',''), height=200)
-    if st.button("Send Reply"):
         with st.spinner("Sending email..."):
-            send_status = send_email(sender_text, edited_reply)
+            send_status = send_email(sender_text, edited)
             if send_status:
                 st.success(f"Email sent successfully to {sender_text}")
-                # Clear generated reply after send
-                st.session_state.pop('generated_reply', None)
+                # Clear response after send
+                st.session_state.generated_response = None
+                st.session_state.editing_response = None
+                _safe_rerun()
             else:
                 st.error("Failed to send the email.")
